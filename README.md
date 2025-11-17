@@ -4,153 +4,279 @@
 ![GCP](https://img.shields.io/badge/GCP-Sheets%20API-orange)
 ![OSM](https://img.shields.io/badge/OpenStreetMap-API-success)
 
-Automation toolkit for managing **geo-related content** — such as ski lifts, POIs, and resort regions — using data from **Google Sheets (via Google Cloud Platform)** and **OpenStreetMap**.
+Automation toolkit for managing **geo-related content** – ski lifts, regions, POIs – using data from **Google Sheets** and **OpenStreetMap**.  
+The scripts are used to enrich and validate hotel / region data and to automate actions in **Django Admin**.
 
-> **Stack:** Python • Selenium • GCP (Google Sheets API) • Overpass / Nominatim • Django Admin automation
-
-This repository demonstrates Python-based automation for **geodata enrichment** and **content management systems** (Django Admin style), with an emphasis on multilingual support and spatial data accuracy.
-
----
-
-## 🚀 Features
-
-- 🔍 Fetches lift and POI coordinates from **OpenStreetMap (Overpass + Nominatim)**  
-- 🧮 Reads multilingual POI data from **Google Sheets (EN/RU + grammatical cases)**  
-- ⚙️ Automates data entry to admin panels using **Selenium**  
-- 🌍 Configurable via `.env` — paths, credentials, and modes (headless, dry run)  
-- 🪄 Keeps browser tabs open for review and debugging  
+> **Stack:** Python • Selenium • Google Sheets API (GCP) • Nominatim / OSM • Google Maps Geocoding • dotenv
 
 ---
 
-## 🧩 Structure
-
-```
+## 📁 Repository structure
+```text
 automatization-scripts/
 │
-├── ski_lifts/
-│   ├── catedral_lifts_from_osm.py # Catedral Alta Patagonia (Argentina)
-│   ├── garmisch_lifts_from_osm.py # Garmisch-Partenkirchen (Germany)
-│   ├── gudauri_lifts_from_osm.py  # Gudauri (Georgia)
-│   └── admin_upload_from_sheet.py # Universal admin uploader (any resort/sheet)
+├── GCP JSON/                      # Service account JSON (NOT in Git)
+│   └── geo-content-automatization-*.json
+│
+├── no_polygons/                   # Scripts for regions without polygons
+│   ├── .env.polygons             # Local env (ignored)
+│   ├── .env.polygons.example     # Example env for this folder
+│   ├── id_searches.py            # Fetch region meta from Django Admin → Sheets
+│   └── OSM_fetching.py           # Geocode regions via Nominatim + Google Maps
+│
+├── ski_lifts/                     # Ski lifts & Django Admin automation
+│   ├── .env.ski_lifts            # Local env (ignored)
+│   ├── .env.ski_lifts.example    # Example env for ski_lifts scripts
+│   ├── admin_upload_from_sheet.py    # Upload POIs / lifts to Django Admin
+│   ├── catedral_lifts_from_osm.py    # Catedral Alta Patagonia (AR)
+│   ├── garmisch_lifts_from_osm.py    # Garmisch-Partenkirchen (DE)
+│   ├── gudauri_lifts_from_osm.py     # Gudauri (GE)
+│   └── shymbulak_lifts_from_osm.py   # Shymbulak (KZ)
+│
 ├── slugs/
-│   ├── slugs_regions_parsing.py   # Reads region data from admin by slug and writes to Google Sheets
-│   └── slugs_checking.py          # Optional: validation script for region slugs
+│   └── slugs_regions_parsing.py  # Resolve region slugs → IDs / names → Sheets
 │
-├── GCP JSON/                      # Local credentials (ignored)
-│   └── geo-content-automatization-xxxx.json
-│
-├── .env.example                   # Example environment config
-├── .gitignore
+├── venv/                         # Local virtualenv (ignored)
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## ⚙️ Setup
+## 🔧 Requirements
 
-### 1. Clone the repository
+- **Python 3.10+**
+- **Google Cloud project with:**
+  - Google Sheets API enabled
+  - service account JSON with edit access
+- **Chrome + chromedriver** (for Selenium-based scripts)
+
+## ⚙️ Installation
 ```bash
 git clone git@github.com:nikgalkins/automatization-scripts.git
 cd automatization-scripts
-```
 
-### 2. Create a virtual environment
-```bash
 python -m venv venv
+# Windows:
 .\venv\Scripts\activate
-```
+# Linux / macOS:
+# source venv/bin/activate
 
-### 3. Install dependencies
-```bash
 pip install -r requirements.txt
-```
-
-### 4. Configure environment variables
-Copy the example file and edit values if needed:
-```bash
-cp .env.example .env
 ```
 
 ---
 
-## 🧭 Usage
+## 🔐 Environment configuration
 
-### 🏔️ Fetch ski lift coordinates (from OSM)
+This project uses folder-specific env files.
+Real env files are NOT committed; only `*.example` templates are in Git.
 
-Each resort script reads lift names from Google Sheets and updates latitude, longitude, and OSM metadata (E–J columns).
+1. ski_lifts/.env.ski_lifts
+
+Used by Selenium scripts in ski_lifts/ (Chrome + Django Admin).
+
+Create from template:
 
 ```bash
-# Catedral Alta Patagonia (Argentina)
-python ski_lifts/catedral_lifts_from_osm.py
+cd ski_lifts
+cp .env.ski_lifts.example .env.ski_lifts
+```
 
-# Garmisch-Partenkirchen (Germany)
-python ski_lifts/garmisch_lifts_from_osm.py
+Fill in values:
 
-# Gudauri (Georgia)
+```bash
+# === ski_lifts Selenium automation ===
+
+# ---- Chrome / Selenium ----
+CHROME_BINARY=C:/chrome-win64/chrome.exe
+USER_DATA_DIR=C:/Users/USERNAME/AppData/Local/Google/Chrome for Testing/User Data
+CHROMEDRIVER=C:/chromedriver-win64/chromedriver.exe
+
+# ---- Google Service Account ----
+SERVICE_ACCOUNT_FILE=GCP JSON/geo-content-automatization-XXXXX.json
+
+# ---- Django Admin ----
+ADMIN_URL_ADD=https://content.ostrovok.in/admin/geo/region/add/
+PARENT_SEARCH_TEXT=
+PARENT_VISIBLE_TEXT=
+TYPE_VISIBLE_TEXT=
+
+# ---- Optional toggles ----
+DRY_RUN=0
+HEADLESS=0
+KEEP_BROWSER_OPEN=1
+```
+
+Each Selenium-based script in ski_lifts/ calls:
+
+```python
+load_dotenv(BASE_DIR / ".env.ski_lifts")
+```
+
+so these variables become available via os.getenv(...).
+
+2. no_polygons/.env.polygons
+
+Used by scripts that work with regions without polygons.
+
+Create from template:
+```bash
+cd no_polygons
+cp .env.polygons.example .env.polygons
+```
+
+Fill in your credentials:
+
+```bash
+# === no_polygons configuration ===
+
+# Google Maps Geocoding API key
+GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY
+
+# Google Service Account JSON path
+SERVICE_ACCOUNT_FILE=GCP JSON/geo-content-automatization-XXXXX.json
+```
+
+OSM_fetching.py loads it via:
+
+```bash
+load_dotenv(BASE_DIR / ".env.polygons")
+```
+
+## 🏔️ ski_lifts scripts
+
+### 1. Fetch lifts from OSM
+
+Each script (*_lifts_from_osm.py) reads lift names / metadata from Google Sheets, calls Nominatim / Overpass, and writes back lat/lon & OSM IDs.
+
+Run (example):
+
+```bash
 python ski_lifts/gudauri_lifts_from_osm.py
+python ski_lifts/catedral_lifts_from_osm.py
+python ski_lifts/garmisch_lifts_from_osm.py
+python ski_lifts/shymbulak_lifts_from_osm.py
 ```
 
-### 🏙️ Upload POIs to Admin (universal uploader)
+**Requires:**
+- configured Google Sheet (spreadsheet & worksheet name set inside script)
+- service account JSON with edit access
 
-The universal uploader takes the sheet name and parent region as arguments.
+### 2. Upload POIs / lifts to Django Admin
+
+admin_upload_from_sheet.py reads data from Google Sheets and creates regions / POIs in Django Admin using Selenium.
+
+Basic usage:
 
 ```bash
-# Example: Gudauri
-python ski_lifts/admin_upload_from_sheet.py \
-  --spreadsheet "POIs" \
-  --worksheet "Gudauri" \
-  --admin-url "https://content.ostrovok.in/admin/geo/region/add/" \
-  --parent-id "6139982" \
-  --parent-visible "6139982, Gudauri, GE (City)" \
-  --type-visible "Point of Interest"
+python ski_lifts/admin_upload_from_sheet.py
 ```
 
-**Default behavior:**
-- Parent region and type are configurable via CLI or environment variables  
-- Browser runs interactively (`HEADLESS=0`)  
-- Chrome window stays open after execution  
+The behavior is controlled mostly by .env.ski_lifts:
 
-### 🌐 Parse Regions from Admin by Slugs
+ADMIN_URL_ADD – URL of the "Add region" page
 
-Automates fetching of region data (raw string, ID, name, country) for each slug listed in Google Sheets.
+PARENT_* – info about parent region
+
+TYPE_VISIBLE_TEXT – region type (e.g. Point of Interest)
+
+DRY_RUN=1 – simulate, no actual form submission
+
+HEADLESS=1 – run Chrome in headless mode
+
+### 🧩 no_polygons scripts
+
+Scripts for regions that have no polygon in OSM and need manual / point-based geometry.
+
+### 1. id_searches.py
+
+Reads region IDs from a Google Sheet (A column)
+
+For each ID opens Django Admin /admin/geo/region/<id>/change/
+
+Extracts:
+- Region name
+- Parent name & parent ID
+- Country code
+- Manual latitude / longitude
+
+Writes a table back to Google Sheets, starting at A1.
+
+Run:
+
+```bash
+python no_polygons/id_searches.py
+```
+
+### 2. OSM_fetching.py
+
+Reads city and parent region from columns B and C
+
+For each row:
+
+Geocodes city, parent via Nominatim
+
+Optionally gets Russian name via Google Maps Geocoding API
+
+Writes:
+- Latitude / longitude
+- OSM ID / type / class / geometry
+- Bounding box (west/south/east/north)
+- Russian name
+
+Output is written to columns H–S.
+
+Run:
+
+```bash
+python no_polygons/OSM_fetching.py
+```
+
+### 🔤 slugs scripts
+
+#### slugs_regions_parsing.py
+
+Resolves region slugs stored in Google Sheets into concrete region data:
+
+slug → region ID
+
+region name
+
+country code
+
+any other metadata defined in the script
+
+Usage:
 
 ```bash
 python slugs/slugs_regions_parsing.py
 ```
 
-**Columns updated automatically:**  
-`B: Region_raw`, `C: Region_id`, `D: Region_name`, `E: Region_country`
+This script is helpful for:
+- validating slugs
+- migrating content between systems
+- debugging missing / broken mappings
 
----
+## 🧪 Development tips
 
-## 🧰 Environment Variables
+Prefer running inside virtualenv:
 
-| Variable | Description |
-|-----------|-------------|
-| `CHROME_BINARY` | Path to Chrome executable |
-| `USER_DATA_DIR` | Chrome user profile for Selenium |
-| `CHROMEDRIVER` | Path to ChromeDriver |
-| `CREDENTIALS_FILE` | Path to Google Service Account JSON |
-| `ADMIN_URL_ADD` | Admin "Add region" page URL |
-| `PARENT_SEARCH_TEXT` | Parent region numeric ID |
-| `PARENT_VISIBLE_TEXT` | Parent region visible text (Select2 entry) |
-| `TYPE_VISIBLE_TEXT` | Region type dropdown value (e.g., "Point of Interest") |
-| `SPREADSHEET_NAME` | Google Sheet name that stores lift/POI data |
-| `WORKSHEET_NAME` | Sheet tab name within the spreadsheet |
-| `DRY_RUN` | Skip Selenium actions (`1` = test mode) |
-| `HEADLESS` | Run Chrome invisibly (`1` = headless mode) |
+```bash
+.\venv\Scripts\activate
+```
 
-Use `--dry-run` to preview without Selenium.
+To keep Selenium windows open for debugging, set:
 
----
+```bash
+KEEP_BROWSER_OPEN=1
+HEADLESS=0
+```
 
-## 🧪 Example Use Case
-
-1. You maintain a Google Sheet with columns:  
-   `A: Name_en | B: Name_ru | C: Genitive_ru | D: Locative_ru | F: lat | G: lon`  
-2. The OSM script finds coordinates for missing items and updates the sheet.  
-3. The automation script uses Selenium to add those POIs to a web admin panel automatically.  
+To avoid accidental form submissions while testing:
+```bash
+DRY_RUN=1
+```
 
 ---
 
@@ -158,9 +284,9 @@ Use `--dry-run` to preview without Selenium.
 
 - **Python 3.10+**  
 - **Selenium 4.x**  
-- **gspread**, **google-auth**  
-- **Overpass API**, **Nominatim**  
-- **dotenv-based configuration**
+- **gspread, oauth2client – Google Sheets API**
+- **geopy (Nominatim), googlemaps – geocoding & reverse geocoding**  
+- **python-dotenv – per-folder environment configuration**
 
 ---
 
@@ -175,5 +301,5 @@ Geo Content Automation Specialist
 
 ## 🪪 License
 
-MIT License — for educational and portfolio use.  
-(Production usage requires appropriate API credentials and access rights.)
+MIT License – for educational and portfolio use.
+Production usage requires appropriate API credentials and legal access to admin systems.

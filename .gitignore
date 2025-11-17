@@ -26,5 +26,6 @@ venv.txt
 .DS_Store
 Thumbs.db
 
-# Environment
-.env.example
+# Environment files
+.env*
+no_polygons/.env.polygons
